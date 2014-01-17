@@ -1,0 +1,56 @@
+<html>
+<head>
+    <script>
+        var updateInterval = 1000;
+        var setHostBaseUrl = window.location.hostname + '/rebind/set?';
+
+        var listElement;
+
+        function init() {
+            setTimeout(update, 100);
+        }
+
+        // Updates the list of possible targets
+        function update() {
+            var requestObject;
+            try {
+                requestObject = new XMLHttpRequest();
+            } catch (err) {
+                console.log(err);
+            }
+
+            requestObject.open('GET', window.location.hostname + '/rebind/listjs', false);
+            requestObject.send();
+
+            if(listElement) {
+                listElement.parentNode.removeChild(listElement);
+            }
+
+            listElement = document.createElement('ul');
+
+            var responses = requestObject.responseText.split('\r\n');
+            for (var i = 0; i < responses.length; i++) {
+            if(!responses[i]) continue;
+            
+                var listEntryContainer = document.createElement('li');
+                var listEntry = document.createElement('a');
+
+                listEntry.href = setHostBaseUrl + responses[i];
+                listEntry.innerHTML = responses[i];
+
+                listEntryContainer.appendChild(listEntry);
+                listElement.appendChild(listEntryContainer);
+            }
+
+            document.body.appendChild(listElement);
+
+            setTimeout(update, updateInterval);
+        }
+    </script>
+</head>
+
+<body onload="init()">
+
+</body>
+
+</html>
